@@ -1,7 +1,8 @@
+### APRIL 6 Update app.py
+
 import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
-from pathlib import Path
 import io
 
 # ---------------------------
@@ -25,7 +26,7 @@ uploaded_files = st.file_uploader(
 )
 
 # ---------------------------
-# PARSER (FULL LOGIC)
+# PARSER
 # ---------------------------
 def parse_xml_to_tables(file):
     tables = []
@@ -34,10 +35,13 @@ def parse_xml_to_tables(file):
         tree = ET.parse(file)
         root = tree.getroot()
 
+        doctype_elem = root.find('.//JEHEADER/DOCTYPE')
+        doctype = doctype_elem.text.strip() if doctype_elem is not None and doctype_elem.text else '(empty)'
+
         for jeline_num, jeline in enumerate(root.findall('.//JELINE'), 1):
             # DR/CR
             drcr_elem = jeline.find('.//DRCR')
-            drcr = drcr_elem.text.strip() if drcr_elem is not None else '?'
+            drcr = drcr_elem.text.strip() if drcr_elem is not None and drcr_elem.text else '?'
 
             # Amount
             amount = jeline.find('.//AMOUNT')
@@ -58,12 +62,12 @@ def parse_xml_to_tables(file):
                 for elem in jeline.findall('.//ELEMENT')
             }
 
-            # TABLE STRUCTURE (your mapping)
+            # TABLE STRUCTURE
             rows = [
                 [drcr_label, '30', '-', refs.get('30'), 'ACD#'],
                 [drcr, '-', '1', elements.get('1'), 'Legal Entity'],
-                [drcr, '2', '2', refs.get('2'), 'DOC TYPE (Receipt)'],
-                [drcr, '3', '3', elements.get('3'), 'GL Account'],
+                [drcr, '2', '2', doctype, 'DOC TYPE'],
+                [drcr, '3', '3', elements.get('3'), 'GL AP GNRI'],
                 [drcr, '4', '4', elements.get('4'), 'Business / Customer'],
                 [drcr, '5', '5', refs.get('5'), 'PO / Supplier'],
                 [drcr, '-', '6', elements.get('6'), 'Store / Location'],
@@ -84,11 +88,11 @@ def parse_xml_to_tables(file):
             df['JELINE'] = jeline_num
             tables.append(df)
 
+        return tables
+
     except Exception as e:
         st.error(f"❌ Error parsing XML: {e}")
-
-    return tables
-
+        return []
 
 # ---------------------------
 # MAIN PROCESSING
@@ -149,8 +153,5 @@ if uploaded_files:
             mime="text/csv"
         )
 
-# ---------------------------
-# EMPTY STATE
-# ---------------------------
 else:
     st.info("👆 Upload one or more XML files to begin analysis")
