@@ -15,7 +15,7 @@ st.title("🛠️ HxGN EAM JELINE XML Analyzer")
 st.markdown("Upload XML files → Analyze JELINE → Export Excel")
 
 # ---------------------------
-# BUSINESS COLUMN ORDER
+# COLUMN ORDER (BUSINESS LOGIC)
 # ---------------------------
 COLUMN_ORDER = [
     "FileName",
@@ -100,8 +100,8 @@ def parse_xml_to_tables(file, filename):
                 'Meaning'
             ])
 
-            df['JELINE'] = jeline_num
-            df['FileName'] = filename
+            df["FileName"] = filename
+            df["JELINE"] = jeline_num
 
             tables.append(df)
 
@@ -110,6 +110,17 @@ def parse_xml_to_tables(file, filename):
     except Exception as e:
         st.error(f"❌ Error parsing XML: {e}")
         return []
+
+# ---------------------------
+# COLOR FUNCTION (DR / CR)
+# ---------------------------
+def color_dr_cr(val):
+    if isinstance(val, str):
+        if val.startswith("D"):
+            return "color: red; font-weight: bold;"
+        elif val.startswith("C"):
+            return "color: green; font-weight: bold;"
+    return ""
 
 # ---------------------------
 # MAIN PROCESSING
@@ -129,7 +140,7 @@ if uploaded_files:
         progress.progress((i + 1) / len(uploaded_files))
 
     # ---------------------------
-    # PROCESS OUTPUT
+    # OUTPUT
     # ---------------------------
     if all_tables:
 
@@ -138,7 +149,7 @@ if uploaded_files:
         st.success(f"✅ Processed {len(uploaded_files)} file(s)")
 
         # ---------------------------
-        # PIVOT: ROWS → COLUMNS
+        # PIVOT (NO SPECIAL MERGING)
         # ---------------------------
         pivot_df = full_df.pivot_table(
             index=["FileName", "JELINE", "DR/CR (Amount)"],
@@ -150,16 +161,21 @@ if uploaded_files:
         pivot_df.columns.name = None
 
         # ---------------------------
-        # BUSINESS COLUMN ORDER
+        # COLUMN ORDERING
         # ---------------------------
-        existing_cols = [col for col in COLUMN_ORDER if col in pivot_df.columns]
-        remaining_cols = [col for col in pivot_df.columns if col not in existing_cols]
+        existing_cols = [c for c in COLUMN_ORDER if c in pivot_df.columns]
+        remaining_cols = [c for c in pivot_df.columns if c not in existing_cols]
         pivot_df = pivot_df[existing_cols + remaining_cols]
 
         # ---------------------------
-        # DISPLAY
+        # COLOR DR/CR
         # ---------------------------
-        st.dataframe(pivot_df, use_container_width=True)
+        styled_df = pivot_df.style.applymap(
+            color_dr_cr,
+            subset=["DR/CR (Amount)"]
+        )
+
+        st.dataframe(styled_df, use_container_width=True)
 
         # ---------------------------
         # EXCEL EXPORT
@@ -167,12 +183,12 @@ if uploaded_files:
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            pivot_df.to_excel(writer, sheet_name="JELINE_WIDE_FORMAT", index=False)
+            pivot_df.to_excel(writer, sheet_name="JELINE_WIDE", index=False)
 
         st.download_button(
-            label="📥 Download Excel Report",
-            data=output.getvalue(),
-            file_name="JELINE_WIDE_ANALYSIS.xlsx",
+            "📥 Download Excel",
+            output.getvalue(),
+            file_name="JELINE_ANALYSIS.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
@@ -180,9 +196,9 @@ if uploaded_files:
         # CSV EXPORT
         # ---------------------------
         st.download_button(
-            label="📥 Download CSV Summary",
-            data=pivot_df.to_csv(index=False),
-            file_name="JELINE_WIDE_SUMMARY.csv",
+            "📥 Download CSV",
+            pivot_df.to_csv(index=False),
+            file_name="JELINE_ANALYSIS.csv",
             mime="text/csv"
         )
 
