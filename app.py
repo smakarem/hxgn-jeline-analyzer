@@ -35,7 +35,7 @@ COLUMN_ORDER = [
 ]
 
 # ---------------------------
-# UPLOADER
+# FILE UPLOADER
 # ---------------------------
 uploaded_files = st.file_uploader(
     "📁 Upload XML files",
@@ -78,23 +78,21 @@ def parse_xml_to_tables(file, filename):
         }
 
         rows = [
-            [drcr_label, '30', '-', refs.get('30'), 'ACD#'],
-            [drcr, '-', '1', elements.get('1'), 'Legal Entity'],
-            [drcr, '2', '2', doctype, 'DOC TYPE'],
-            [drcr, '3', '3', elements.get('3'), 'GL AP GNRI'],
-            [drcr, '4', '4', elements.get('4'), 'Business / Customer'],
-            [drcr, '5', '5', refs.get('5'), 'PO / Supplier'],
-            [drcr, '-', '6', elements.get('6'), 'Store / Location'],
-            [drcr, '-', '7', elements.get('7'), 'Segment 1'],
-            [drcr, '-', '8', elements.get('8'), 'Receipt #'],
-            [drcr, '-', '9', elements.get('9'), 'PO #'],
-            [drcr, '-', '10', elements.get('10'), 'Unused']
+            [drcr_label, refs.get('30'), 'ACD#'],
+            [drcr_label, elements.get('1'), 'Legal Entity'],
+            [drcr_label, doctype, 'DOC TYPE'],
+            [drcr_label, elements.get('3'), 'GL AP GNRI'],
+            [drcr_label, elements.get('4'), 'Business / Customer'],
+            [drcr_label, refs.get('5'), 'PO / Supplier'],
+            [drcr_label, elements.get('6'), 'Store / Location'],
+            [drcr_label, elements.get('7'), 'Segment 1'],
+            [drcr_label, elements.get('8'), 'Receipt #'],
+            [drcr_label, elements.get('9'), 'PO #'],
+            [drcr_label, elements.get('10'), 'Unused']
         ]
 
         df = pd.DataFrame(rows, columns=[
             'DR/CR (Amount)',
-            'REF Index',
-            'Element Index',
             'Value',
             'Meaning'
         ])
@@ -125,10 +123,15 @@ if uploaded_files:
         st.success(f"✅ Processed {len(uploaded_files)} file(s)")
 
         # ---------------------------
-        # PIVOT
+        # 1️⃣ GET DR/CR PER JELINE
+        # ---------------------------
+        drcr_df = full_df[["FileName", "JELINE", "DR/CR (Amount)"]].drop_duplicates()
+
+        # ---------------------------
+        # 2️⃣ PIVOT WITHOUT DR/CR
         # ---------------------------
         pivot_df = full_df.pivot_table(
-            index=["FileName", "JELINE", "DR/CR (Amount)"],
+            index=["FileName", "JELINE"],
             columns="Meaning",
             values="Value",
             aggfunc="first"
@@ -137,55 +140,43 @@ if uploaded_files:
         pivot_df.columns.name = None
 
         # ---------------------------
-        # ORDER COLUMNS
+        # 3️⃣ MERGE BACK DR/CR
         # ---------------------------
-        existing_cols = [c for c in COLUMN_ORDER if c in pivot_df.columns]
-        remaining_cols = [c for c in pivot_df.columns if c not in existing_cols]
-        pivot_df = pivot_df[existing_cols + remaining_cols]
+        final_df = pd.merge(pivot_df, drcr_df, on=["FileName", "JELINE"], how="left")
 
         # ---------------------------
-        # COLOR LOGIC (SAFE VERSION)
+        # 4️⃣ COLUMN ORDER
         # ---------------------------
-        def highlight_drcr(row):
-            drcr = row["DR/CR (Amount)"]
-            if isinstance(drcr, str):
-                if drcr.startswith("D"):
-                    return ["background-color: #ffcccc"] * len(row)
-                elif drcr.startswith("C"):
-                    return ["background-color: #ccffcc"] * len(row)
-            return [""] * len(row)
+        existing_cols = [c for c in COLUMN_ORDER if c in final_df.columns]
+        remaining_cols = [c for c in final_df.columns if c not in existing_cols]
+        final_df = final_df[existing_cols + remaining_cols]
 
         # ---------------------------
-        # DISPLAY (NO STYLER ERRORS)
+        # DISPLAY
         # ---------------------------
-        st.dataframe(pivot_df, use_container_width=True)
+        st.dataframe(final_df, use_container_width=True)
 
-        st.caption("🔴 DR rows are Debit | 🟢 CR rows are Credit")
+        st.caption("🔴 DR = Debit | 🟢 CR = Credit")
 
         # ---------------------------
-        # EXCEL EXPORT
+        # EXPORT
         # ---------------------------
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            pivot_df.to_excel(writer, sheet_name="JELINE", index=False)
+            final_df.to_excel(writer, sheet_name="JELINE", index=False)
 
         st.download_button(
             "📥 Download Excel",
             output.getvalue(),
-            file_name="JELINE_ANALYSIS.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            file_name="JELINE_ANALYSIS.xlsx"
         )
 
-        # ---------------------------
-        # CSV EXPORT
-        # ---------------------------
         st.download_button(
             "📥 Download CSV",
-            pivot_df.to_csv(index=False),
-            file_name="JELINE_ANALYSIS.csv",
-            mime="text/csv"
+            final_df.to_csv(index=False),
+            file_name="JELINE_ANALYSIS.csv"
         )
 
 else:
-    st.info("👆 Upload one or more XML files to begin analysis")
+    st.info("👆 Upload XML files to begin")
