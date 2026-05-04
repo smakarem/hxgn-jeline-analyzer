@@ -15,6 +15,26 @@ st.title("🛠️ HxGN EAM JELINE XML Analyzer")
 st.markdown("Upload XML files → Analyze JELINE → Export Excel")
 
 # ---------------------------
+# BUSINESS COLUMN ORDER
+# ---------------------------
+COLUMN_ORDER = [
+    "FileName",
+    "JELINE",
+    "DR/CR (Amount)",
+    "ACD#",
+    "Legal Entity",
+    "DOC TYPE",
+    "GL AP GNRI",
+    "Business / Customer",
+    "PO / Supplier",
+    "Store / Location",
+    "Segment 1",
+    "Receipt #",
+    "PO #",
+    "Unused"
+]
+
+# ---------------------------
 # FILE UPLOADER
 # ---------------------------
 uploaded_files = st.file_uploader(
@@ -81,7 +101,7 @@ def parse_xml_to_tables(file, filename):
             ])
 
             df['JELINE'] = jeline_num
-            df['FileName'] = filename   # ✅ KEY CHANGE
+            df['FileName'] = filename
 
             tables.append(df)
 
@@ -109,28 +129,50 @@ if uploaded_files:
         progress.progress((i + 1) / len(uploaded_files))
 
     # ---------------------------
-    # COMBINE EVERYTHING (ROW FORMAT)
+    # PROCESS OUTPUT
     # ---------------------------
     if all_tables:
+
         full_df = pd.concat(all_tables, ignore_index=True)
 
         st.success(f"✅ Processed {len(uploaded_files)} file(s)")
 
-        # ✅ SINGLE TABLE OUTPUT (NO BLOCKS)
-        st.dataframe(full_df, use_container_width=True)
+        # ---------------------------
+        # PIVOT: ROWS → COLUMNS
+        # ---------------------------
+        pivot_df = full_df.pivot_table(
+            index=["FileName", "JELINE", "DR/CR (Amount)"],
+            columns="Meaning",
+            values="Value",
+            aggfunc="first"
+        ).reset_index()
+
+        pivot_df.columns.name = None
 
         # ---------------------------
-        # EXCEL EXPORT (ALL IN ONE SHEET)
+        # BUSINESS COLUMN ORDER
+        # ---------------------------
+        existing_cols = [col for col in COLUMN_ORDER if col in pivot_df.columns]
+        remaining_cols = [col for col in pivot_df.columns if col not in existing_cols]
+        pivot_df = pivot_df[existing_cols + remaining_cols]
+
+        # ---------------------------
+        # DISPLAY
+        # ---------------------------
+        st.dataframe(pivot_df, use_container_width=True)
+
+        # ---------------------------
+        # EXCEL EXPORT
         # ---------------------------
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            full_df.to_excel(writer, sheet_name="JELINE_ALL_FILES", index=False)
+            pivot_df.to_excel(writer, sheet_name="JELINE_WIDE_FORMAT", index=False)
 
         st.download_button(
             label="📥 Download Excel Report",
             data=output.getvalue(),
-            file_name="JELINE_ANALYSIS.xlsx",
+            file_name="JELINE_WIDE_ANALYSIS.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
@@ -139,8 +181,8 @@ if uploaded_files:
         # ---------------------------
         st.download_button(
             label="📥 Download CSV Summary",
-            data=full_df.to_csv(index=False),
-            file_name="JELINE_SUMMARY.csv",
+            data=pivot_df.to_csv(index=False),
+            file_name="JELINE_WIDE_SUMMARY.csv",
             mime="text/csv"
         )
 
