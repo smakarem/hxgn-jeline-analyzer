@@ -1,6 +1,3 @@
-### APRIL 6 Update app.py
-### APRIL 6 Update app.py
-
 import streamlit as st
 import xml.etree.ElementTree as ET
 import pandas as pd
@@ -29,7 +26,7 @@ uploaded_files = st.file_uploader(
 # ---------------------------
 # PARSER
 # ---------------------------
-def parse_xml_to_tables(file):
+def parse_xml_to_tables(file, filename):
     tables = []
 
     try:
@@ -40,11 +37,10 @@ def parse_xml_to_tables(file):
         doctype = doctype_elem.text.strip() if doctype_elem is not None and doctype_elem.text else '(empty)'
 
         for jeline_num, jeline in enumerate(root.findall('.//JELINE'), 1):
-            # DR/CR
+
             drcr_elem = jeline.find('.//DRCR')
             drcr = drcr_elem.text.strip() if drcr_elem is not None and drcr_elem.text else '?'
 
-            # Amount
             amount = jeline.find('.//AMOUNT')
             value = float(amount.find('VALUE').text or 0) if amount is not None else 0
             numdec = int(amount.find('NUMOFDEC').text or 0) if amount is not None else 0
@@ -52,7 +48,6 @@ def parse_xml_to_tables(file):
 
             drcr_label = f"{drcr} ({proper_amount})"
 
-            # REFs & ELEMENTS
             refs = {
                 ref.get('index'): (ref.text or '').strip() or '(empty)'
                 for ref in jeline.findall('.//REF')
@@ -63,7 +58,6 @@ def parse_xml_to_tables(file):
                 for elem in jeline.findall('.//ELEMENT')
             }
 
-            # TABLE STRUCTURE
             rows = [
                 [drcr_label, '30', '-', refs.get('30'), 'ACD#'],
                 [drcr, '-', '1', elements.get('1'), 'Legal Entity'],
@@ -87,6 +81,8 @@ def parse_xml_to_tables(file):
             ])
 
             df['JELINE'] = jeline_num
+            df['FileName'] = filename   # ✅ KEY CHANGE
+
             tables.append(df)
 
         return tables
@@ -104,36 +100,32 @@ if uploaded_files:
     progress = st.progress(0)
 
     for i, file in enumerate(uploaded_files):
-        st.subheader(f"📄 {file.name}")
 
-        tables = parse_xml_to_tables(file)
+        tables = parse_xml_to_tables(file, file.name)
 
         if tables:
-            combined = pd.concat(tables, ignore_index=True)
-            st.dataframe(combined, use_container_width=True)
-            all_tables.append(combined)
-        else:
-            st.warning("No JELINE data found")
+            all_tables.extend(tables)
 
         progress.progress((i + 1) / len(uploaded_files))
 
     # ---------------------------
-    # SUMMARY
+    # COMBINE EVERYTHING (ROW FORMAT)
     # ---------------------------
     if all_tables:
-        st.success(f"✅ Processed {len(uploaded_files)} file(s)")
-
-        # Combine all
         full_df = pd.concat(all_tables, ignore_index=True)
 
+        st.success(f"✅ Processed {len(uploaded_files)} file(s)")
+
+        # ✅ SINGLE TABLE OUTPUT (NO BLOCKS)
+        st.dataframe(full_df, use_container_width=True)
+
         # ---------------------------
-        # DOWNLOAD EXCEL
+        # EXCEL EXPORT (ALL IN ONE SHEET)
         # ---------------------------
         output = io.BytesIO()
 
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            for i, df in enumerate(all_tables):
-                df.to_excel(writer, sheet_name=f"File_{i+1}", index=False)
+            full_df.to_excel(writer, sheet_name="JELINE_ALL_FILES", index=False)
 
         st.download_button(
             label="📥 Download Excel Report",
@@ -143,13 +135,11 @@ if uploaded_files:
         )
 
         # ---------------------------
-        # DOWNLOAD CSV
+        # CSV EXPORT
         # ---------------------------
-        csv_data = full_df.to_csv(index=False)
-
         st.download_button(
             label="📥 Download CSV Summary",
-            data=csv_data,
+            data=full_df.to_csv(index=False),
             file_name="JELINE_SUMMARY.csv",
             mime="text/csv"
         )
