@@ -23,6 +23,7 @@ COLUMN_ORDER = [
     "DR/CR (Amount)",
     "ACD#",
     "Legal Entity",
+    "SITE",
     "DOC TYPE",
     "GL AP GNRI",
     "Business / Customer",
@@ -79,7 +80,8 @@ def parse_xml_to_tables(file, filename):
 
         rows = [
             [drcr_label, refs.get('30'), 'ACD#'],
-            [drcr_label, elements.get('1'), 'Legal Entity'],
+            [drcr_label, elements.get('1'), 'LegalEntity'],
+            [drcr_label, elements.get('2'), 'SITE'],
             [drcr_label, doctype, 'DOC TYPE'],
             [drcr_label, elements.get('3'), 'GL AP GNRI'],
             [drcr_label, elements.get('4'), 'Business / Customer'],
