@@ -27,11 +27,11 @@ COLUMN_ORDER = [
     "GL AP GNRI",
     "Business / Customer",
     "PO / Supplier",
-    "Store / Location",
-    "Segment 1",
+    "Store",
+    "SITE",
     "Receipt #",
     "PO #",
-    "Unused"
+    "PART##"
 ]
 
 # ---------------------------
@@ -88,7 +88,7 @@ def parse_xml_to_tables(file, filename):
             [drcr_label, elements.get('7'), 'Segment 1'],
             [drcr_label, elements.get('8'), 'Receipt #'],
             [drcr_label, elements.get('9'), 'PO #'],
-            [drcr_label, elements.get('10'), 'Unused']
+            [drcr_label, elements.get('11'), 'PART#']
         ]
 
         df = pd.DataFrame(rows, columns=[
