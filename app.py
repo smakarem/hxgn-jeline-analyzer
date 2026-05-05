@@ -29,10 +29,10 @@ COLUMN_ORDER = [
     "Business / Customer",
     "PO / Supplier",
     "Store",
-    "SITE",
-    "Receipt #",
+    "DEPT NA",
+    "Receipt#",
     "PO #",
-    "PART##"
+    "PART#"
 ]
 
 # ---------------------------
@@ -87,7 +87,7 @@ def parse_xml_to_tables(file, filename):
             [drcr_label, elements.get('4'), 'Business / Customer'],
             [drcr_label, refs.get('5'), 'PO / Supplier'],
             [drcr_label, elements.get('6'), 'Store / Location'],
-            [drcr_label, elements.get('7'), 'Segment 1'],
+            [drcr_label, elements.get('7'), 'DEPT NAME'],
             [drcr_label, elements.get('8'), 'Receipt #'],
             [drcr_label, elements.get('9'), 'PO #'],
             [drcr_label, elements.get('11'), 'PART#']
