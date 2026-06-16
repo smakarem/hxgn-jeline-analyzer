@@ -10,6 +10,16 @@ st.set_page_config(
     page_title="HxGN JELINE Analyzer",
     layout="wide"
 )
+###st.set_page_config(
+###    page_title="HxGN JELINE Analyzer",
+###    layout="wide"
+###)
+# ---------------------------
+# SESSION STATE
+# ---------------------------
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
+
 
 st.title("🛠️ HxGN EAM JELINE XML Analyzer")
 st.markdown("Upload XML files → Analyze JELINE → Export Excel")
@@ -38,12 +48,35 @@ COLUMN_ORDER = [
 # ---------------------------
 # FILE UPLOADER
 # ---------------------------
+##uploaded_files = st.file_uploader(
+##    "📁 Upload XML files",
+##    type=["xml"],
+##    accept_multiple_files=True
+##)
+# ---------------------------
+# FILE UPLOADER
+# ---------------------------
+# ---------------------------
+# FILE CONTROLS
+# ---------------------------
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    if st.button("🗑️ Clear Files"):
+        st.session_state.uploader_key += 1
+        st.rerun()
+
+# ---------------------------
+# FILE UPLOADER
+# ---------------------------
 uploaded_files = st.file_uploader(
     "📁 Upload XML files",
     type=["xml"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    key=f"uploader_{st.session_state.uploader_key}"
 )
-
+if uploaded_files:
+    st.success(f"📂 {len(uploaded_files)} file(s) loaded")
 # ---------------------------
 # PARSER
 # ---------------------------
