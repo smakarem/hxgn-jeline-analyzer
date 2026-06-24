@@ -225,10 +225,12 @@ if uploaded_files:
         # ---------------------------
         # GET UNIQUE JELINE INFO
         # ---------------------------
+        # jeline_info_df = full_df[
+        #     ["FileName", "JELINE", "DR/CR (Amount)", "SIGN"]
+        # ].drop_duplicates()
         jeline_info_df = full_df[
-            ["FileName", "JELINE", "DR/CR (Amount)", "SIGN"]
-        ].drop_duplicates()
-
+            ["FileName", "JELINE", "DR/CR (Amount)", "SIGN", "DRCR"]    
+          ].drop_duplicates()
         # ---------------------------
         # PIVOT
         # ---------------------------
@@ -244,6 +246,8 @@ if uploaded_files:
         # ---------------------------
         # MERGE BACK DR/CR + SIGN
         # ---------------------------
+
+                
         final_df = pd.merge(
             pivot_df,
             jeline_info_df,
