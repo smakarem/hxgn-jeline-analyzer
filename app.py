@@ -88,41 +88,43 @@ def parse_xml_to_tables(file_obj, filename):
     for jeline_num, jeline in enumerate(root.findall(".//JELINE"), 1):
 
         # ---------------------------
-        # SIGN
+        # AMOUNT BLOCK
         # ---------------------------
-        sign_elem = jeline.find("SIGN")
-        sign_value = (
-            sign_elem.text.strip()
-            if sign_elem is not None and sign_elem.text
-            else "(empty)"
-        )
-
-        # ---------------------------
-        # DR/CR + Amount
-        # ---------------------------
-        drcr_elem = jeline.find(".//DRCR")
-        drcr = (
-            drcr_elem.text.strip()
-            if drcr_elem is not None and drcr_elem.text
-            else "?"
-        )
-
         amount = jeline.find(".//AMOUNT")
 
-        try:
-            value = (
-                float(amount.find("VALUE").text or 0)
-                if amount is not None
-                else 0
-            )
-            numdec = (
-                int(amount.find("NUMOFDEC").text or 0)
-                if amount is not None
-                else 0
-            )
-            proper_amount = round(value / (10 ** numdec), numdec)
-        except Exception:
-            proper_amount = 0
+        sign_value = ""
+        drcr = "?"
+        proper_amount = 0
+
+        if amount is not None:
+
+            sign_elem = amount.find("SIGN")
+            if sign_elem is not None and sign_elem.text:
+                sign_value = sign_elem.text.strip()
+
+            drcr_elem = amount.find("DRCR")
+            if drcr_elem is not None and drcr_elem.text:
+                drcr = drcr_elem.text.strip()
+
+            try:
+                value_elem = amount.find("VALUE")
+                numdec_elem = amount.find("NUMOFDEC")
+
+                value = float(
+                    value_elem.text if value_elem is not None else 0
+                )
+
+                numdec = int(
+                    numdec_elem.text if numdec_elem is not None else 0
+                )
+
+                proper_amount = round(
+                    value / (10 ** numdec),
+                    numdec
+                )
+
+            except Exception:
+                proper_amount = 0
 
         drcr_label = f"{drcr} ({proper_amount})"
 
@@ -167,11 +169,20 @@ def parse_xml_to_tables(file_obj, filename):
 
         df["FileName"] = filename
         df["JELINE"] = jeline_num
+
+        # NEW COLUMNS
         df["SIGN"] = sign_value
+        df["DRCR"] = drcr
 
         tables.append(df)
 
     return tables
+
+
+
+
+
+
 
 # ---------------------------
 # MAIN
