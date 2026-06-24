@@ -18,7 +18,10 @@ if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 
 st.title("🛠️ HxGN EAM JELINE XML Analyzer")
-st.markdown("Upload XML files → Analyze JELINE → Click a row to view raw XML → Export Excel")
+st.markdown(
+    "Upload XML files → Analyze JELINE → Capture SIGN values → "
+    "Click a row to view raw XML → Export Excel"
+)
 
 # ---------------------------
 # COLUMN ORDER
@@ -27,6 +30,7 @@ COLUMN_ORDER = [
     "XML Label",
     "FileName",
     "JELINE",
+    "SIGN",
     "DR/CR (Amount)",
     "ACD#",
     "Legal Entity",
@@ -75,29 +79,72 @@ def parse_xml_to_tables(file_obj, filename):
     root = tree.getroot()
 
     doctype_elem = root.find(".//JEHEADER/DOCTYPE")
-    doctype = doctype_elem.text.strip() if doctype_elem is not None and doctype_elem.text else "(empty)"
+    doctype = (
+        doctype_elem.text.strip()
+        if doctype_elem is not None and doctype_elem.text
+        else "(empty)"
+    )
 
     for jeline_num, jeline in enumerate(root.findall(".//JELINE"), 1):
+
+        # ---------------------------
+        # SIGN
+        # ---------------------------
+        sign_elem = jeline.find("SIGN")
+        sign_value = (
+            sign_elem.text.strip()
+            if sign_elem is not None and sign_elem.text
+            else "(empty)"
+        )
+
+        # ---------------------------
+        # DR/CR + Amount
+        # ---------------------------
         drcr_elem = jeline.find(".//DRCR")
-        drcr = drcr_elem.text.strip() if drcr_elem is not None and drcr_elem.text else "?"
+        drcr = (
+            drcr_elem.text.strip()
+            if drcr_elem is not None and drcr_elem.text
+            else "?"
+        )
 
         amount = jeline.find(".//AMOUNT")
-        value = float(amount.find("VALUE").text or 0) if amount is not None else 0
-        numdec = int(amount.find("NUMOFDEC").text or 0) if amount is not None else 0
-        proper_amount = round(value / (10 ** numdec), numdec)
+
+        try:
+            value = (
+                float(amount.find("VALUE").text or 0)
+                if amount is not None
+                else 0
+            )
+            numdec = (
+                int(amount.find("NUMOFDEC").text or 0)
+                if amount is not None
+                else 0
+            )
+            proper_amount = round(value / (10 ** numdec), numdec)
+        except Exception:
+            proper_amount = 0
 
         drcr_label = f"{drcr} ({proper_amount})"
 
+        # ---------------------------
+        # REFS
+        # ---------------------------
         refs = {
             ref.get("index"): (ref.text or "").strip() or "(empty)"
             for ref in jeline.findall(".//REF")
         }
 
+        # ---------------------------
+        # ELEMENTS
+        # ---------------------------
         elements = {
             elem.get("index"): (elem.text or "").strip() or "(empty)"
             for elem in jeline.findall(".//ELEMENT")
         }
 
+        # ---------------------------
+        # ROWS
+        # ---------------------------
         rows = [
             [drcr_label, refs.get("30"), "ACD#"],
             [drcr_label, elements.get("1"), "Legal Entity"],
@@ -120,6 +167,8 @@ def parse_xml_to_tables(file_obj, filename):
 
         df["FileName"] = filename
         df["JELINE"] = jeline_num
+        df["SIGN"] = sign_value
+
         tables.append(df)
 
     return tables
@@ -128,16 +177,27 @@ def parse_xml_to_tables(file_obj, filename):
 # MAIN
 # ---------------------------
 if uploaded_files:
+
     all_tables = []
     raw_xml_map = {}
+
     progress = st.progress(0)
 
     for i, file in enumerate(uploaded_files):
+
         try:
             file_bytes = file.getvalue()
-            raw_xml_map[file.name] = file_bytes.decode("utf-8", errors="replace")
 
-            file_tables = parse_xml_to_tables(io.BytesIO(file_bytes), file.name)
+            raw_xml_map[file.name] = file_bytes.decode(
+                "utf-8",
+                errors="replace"
+            )
+
+            file_tables = parse_xml_to_tables(
+                io.BytesIO(file_bytes),
+                file.name
+            )
+
             all_tables.extend(file_tables)
 
         except Exception as e:
@@ -146,17 +206,20 @@ if uploaded_files:
         progress.progress((i + 1) / len(uploaded_files))
 
     if all_tables:
+
         full_df = pd.concat(all_tables, ignore_index=True)
 
         st.success(f"✅ Processed {len(uploaded_files)} file(s)")
 
         # ---------------------------
-        # 1️⃣ GET DR/CR PER JELINE
+        # GET UNIQUE JELINE INFO
         # ---------------------------
-        drcr_df = full_df[["FileName", "JELINE", "DR/CR (Amount)"]].drop_duplicates()
+        jeline_info_df = full_df[
+            ["FileName", "JELINE", "DR/CR (Amount)", "SIGN"]
+        ].drop_duplicates()
 
         # ---------------------------
-        # 2️⃣ PIVOT WITHOUT DR/CR
+        # PIVOT
         # ---------------------------
         pivot_df = full_df.pivot_table(
             index=["FileName", "JELINE"],
@@ -168,26 +231,36 @@ if uploaded_files:
         pivot_df.columns.name = None
 
         # ---------------------------
-        # 3️⃣ MERGE BACK DR/CR
+        # MERGE BACK DR/CR + SIGN
         # ---------------------------
         final_df = pd.merge(
             pivot_df,
-            drcr_df,
+            jeline_info_df,
             on=["FileName", "JELINE"],
             how="left"
         )
 
         # ---------------------------
-        # 4️⃣ ADD XML LABEL
+        # ADD XML LABEL
         # ---------------------------
         final_df.insert(0, "XML Label", "View XML")
 
         # ---------------------------
-        # 5️⃣ COLUMN ORDER
+        # COLUMN ORDER
         # ---------------------------
-        existing_cols = [c for c in COLUMN_ORDER if c in final_df.columns]
-        remaining_cols = [c for c in final_df.columns if c not in existing_cols]
-        final_df = final_df[existing_cols + remaining_cols]
+        existing_cols = [
+            c for c in COLUMN_ORDER
+            if c in final_df.columns
+        ]
+
+        remaining_cols = [
+            c for c in final_df.columns
+            if c not in existing_cols
+        ]
+
+        final_df = final_df[
+            existing_cols + remaining_cols
+        ]
 
         # ---------------------------
         # DISPLAY
@@ -208,11 +281,17 @@ if uploaded_files:
         # RAW XML PANEL
         # ---------------------------
         if selection and selection["selection"]["rows"]:
+
             selected_idx = selection["selection"]["rows"][0]
+
             selected_file = final_df.iloc[selected_idx]["FileName"]
 
             st.subheader(f"📄 Raw XML: {selected_file}")
-            st.code(raw_xml_map[selected_file], language="xml")
+
+            st.code(
+                raw_xml_map[selected_file],
+                language="xml"
+            )
 
             st.download_button(
                 label="📥 Download Selected Raw XML",
@@ -222,23 +301,39 @@ if uploaded_files:
             )
 
         # ---------------------------
-        # EXPORT
+        # EXPORT EXCEL
         # ---------------------------
         output = io.BytesIO()
 
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            final_df.to_excel(writer, sheet_name="JELINE", index=False)
+        with pd.ExcelWriter(
+            output,
+            engine="openpyxl"
+        ) as writer:
+            final_df.to_excel(
+                writer,
+                sheet_name="JELINE",
+                index=False
+            )
 
         st.download_button(
             "📥 Download Excel",
             output.getvalue(),
-            file_name="JELINE_ANALYSIS.xlsx"
+            file_name="JELINE_ANALYSIS.xlsx",
+            mime=(
+                "application/"
+                "vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
         )
 
+        # ---------------------------
+        # EXPORT CSV
+        # ---------------------------
         st.download_button(
             "📥 Download CSV",
             final_df.to_csv(index=False),
-            file_name="JELINE_ANALYSIS.csv"
+            file_name="JELINE_ANALYSIS.csv",
+            mime="text/csv"
         )
 
 else:
